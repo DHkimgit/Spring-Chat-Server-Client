@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
     Container,
     Paper,
@@ -8,6 +9,8 @@ import {
     Typography,
     Box,
     Stack,
+    Switch,
+    FormControlLabel,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
@@ -22,12 +25,14 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
 
 const ChatLogin = () => {
     const navigate = useNavigate();
+    const [isFromMessageList, setIsFromMessageList] = useState(false);
     const [formData, setFormData] = useState({
-        articleId: '1',
-        chatRoomId: '1',
-        nickname: 'User1',
-        userId: '',
+        articleId: '',
+        chatRoomId: '',
+        jwtToken: '',
+        deviceToken: ''
     });
+    const [error, setError] = useState('');
 
     const handleChange = (e) => {
         setFormData({
@@ -36,12 +41,44 @@ const ChatLogin = () => {
         });
     };
 
-    const handleConnection = (type) => {
-        sessionStorage.setItem('chatData', JSON.stringify({
-            ...formData,
-            connectionType: type,
-        }));
-        navigate('/chat');
+    const handleSwitchChange = (e) => {
+        setIsFromMessageList(e.target.checked);
+        // 쪽지함에서 진입하는 경우가 아니면 chatRoomId 초기화
+        if (!e.target.checked) {
+            setFormData(prev => ({ ...prev, chatRoomId: '' }));
+        }
+    };
+
+    const fetchStudentData = async (token) => {
+        try {
+            const response = await axios.get('http://localhost:8080/user/student/me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Failed to fetch student data:', error);
+            throw new Error('Failed to fetch student data');
+        }
+    };
+
+    const handleConnection = async (type) => {
+        try {
+            const studentData = await fetchStudentData(formData.jwtToken);
+
+            sessionStorage.setItem('chatData', JSON.stringify({
+                ...formData,
+                nickname: studentData.nickname,
+                userId: studentData.studentNumber,
+                connectionType: type,
+                isFromMessageList
+            }));
+
+            navigate('/chat');
+        } catch (error) {
+            setError('Failed to connect: Invalid token or network error');
+        }
     };
 
     return (
@@ -53,8 +90,18 @@ const ChatLogin = () => {
                         채팅 시험용 클라이언트
                     </Typography>
                 </Box>
-
                 <Stack spacing={3} sx={{ width: '100%' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={isFromMessageList}
+                                onChange={handleSwitchChange}
+                                name="isFromMessageList"
+                            />
+                        }
+                        label="쪽지함에서 진입"
+                    />
+
                     <TextField
                         fullWidth
                         label="게시글 ID"
@@ -63,30 +110,45 @@ const ChatLogin = () => {
                         onChange={handleChange}
                         variant="outlined"
                     />
+
+                    {isFromMessageList && (
+                        <TextField
+                            fullWidth
+                            label="채팅방 ID"
+                            name="chatRoomId"
+                            value={formData.chatRoomId}
+                            onChange={handleChange}
+                            variant="outlined"
+                        />
+                    )}
+
                     <TextField
                         fullWidth
-                        label="채팅방 ID"
-                        name="chatRoomId"
-                        value={formData.chatRoomId}
+                        label="JWT Token"
+                        name="jwtToken"
+                        value={formData.jwtToken}
                         onChange={handleChange}
                         variant="outlined"
+                        multiline
+                        rows={3}
                     />
+
                     <TextField
                         fullWidth
-                        label="사용자 닉네임"
-                        name="nickname"
-                        value={formData.nickname}
+                        label="Device Token"
+                        name="deviceToken"
+                        value={formData.deviceToken}
                         onChange={handleChange}
                         variant="outlined"
+                        multiline
+                        rows={3}
                     />
-                    <TextField
-                        fullWidth
-                        label="백엔드 사용자 ID(PK, 정수)"
-                        name="userId"
-                        value={formData.userId}
-                        onChange={handleChange}
-                        variant="outlined"
-                    />
+
+                    {error && (
+                        <Typography color="error" variant="body2">
+                            {error}
+                        </Typography>
+                    )}
 
                     <Stack direction="row" spacing={2}>
                         <Button
@@ -103,9 +165,12 @@ const ChatLogin = () => {
                             variant="contained"
                             color="secondary"
                             size="large"
-                            onClick={() => handleConnection('socketio')}
+                            onClick={() => {
+                                sessionStorage.setItem('jwtToken', formData.jwtToken);
+                                navigate('/chat-list');
+                            }}
                         >
-                            Connect with Socket.IO
+                            채팅방 목록
                         </Button>
                     </Stack>
                 </Stack>

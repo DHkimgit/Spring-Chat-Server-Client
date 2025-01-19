@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import {
     Container,
     Paper,
@@ -33,10 +34,18 @@ const MessagesContainer = styled(Box)(({ theme }) => ({
     gap: theme.spacing(1),
 }));
 
+const DateDivider = styled(Typography)(({ theme }) => ({
+    textAlign: 'center',
+    color: theme.palette.text.secondary,
+    margin: theme.spacing(2, 0),
+    fontSize: '0.875rem',
+}));
+
 const ChatRoom = () => {
     const navigate = useNavigate();
     const [chatData, setChatData] = useState(null);
     const [message, setMessage] = useState('');
+    const [articleTitle, setArticleTitle] = useState('');
 
     const {
         connection,
@@ -54,11 +63,7 @@ const ChatRoom = () => {
         }
 
         const parsedData = JSON.parse(storedData);
-        setChatData(parsedData);
-
-        if (parsedData.connectionType === 'stomp') {
-            connectStomp(parsedData);
-        }
+        initializeChatRoom(parsedData);
 
         return () => {
             if (connection.client) {
@@ -67,18 +72,76 @@ const ChatRoom = () => {
         };
     }, []);
 
+    const initializeChatRoom = async (data) => {
+        try {
+            // 채팅방 정보 가져오기
+            let roomData;
+            if (data.isFromMessageList) {
+                // 쪽지함에서 진입한 경우 - GET 요청
+                const response = await axios.get(
+                    `http://localhost:8080/chatroom/lost-item/${data.articleId}/${data.chatRoomId}`,
+                    {
+                        headers: { 'Authorization': `Bearer ${data.jwtToken}` }
+                    }
+                );
+                roomData = response.data;
+            } else {
+                // 게시글에서 진입한 경우 - POST 요청
+                const response = await axios.post(
+                    `http://localhost:8080/chatroom/lost-item/${data.articleId}`,
+                    {},
+                    {
+                        headers: { 'Authorization': `Bearer ${data.jwtToken}` }
+                    }
+                );
+                roomData = response.data;
+            }
+
+            setArticleTitle(roomData.article_title);
+
+            const updatedChatData = {
+                ...data,
+                chatRoomId: roomData.chat_room_id,
+                userId: roomData.user_id
+            };
+            setChatData(updatedChatData);
+            sessionStorage.setItem('chatData', JSON.stringify(updatedChatData));
+
+            // 웹소켓 연결
+            if (updatedChatData.connectionType === 'stomp') {
+                connectStomp(updatedChatData);
+            }
+
+            // 이전 메시지 로드
+            const messagesResponse = await axios.get(
+                `http://localhost:8080/chatroom/lost-item/${data.articleId}/${roomData.chat_room_id}/messages`,
+                {
+                    headers: { 'Authorization': `Bearer ${data.jwtToken}` }
+                }
+            );
+
+            console.log('Messages response:', messagesResponse.data);
+
+            const formattedMessages = messagesResponse.data.map(msg => ({
+                ...msg,
+                isSentByMe: String(msg.userId) === String(roomData.user_id)
+            }));
+            setMessages(formattedMessages);
+
+        } catch (error) {
+            console.error('Failed to initialize chat room:', error);
+            navigate('/');
+        }
+    };
+
     const connectStomp = (data) => {
         const client = createStompConnection({
             onConnect: () => {
                 console.log('Connected!');
                 setConnection({ isConnected: true, client });
 
-                // Subscribe to the chat room
                 client.subscribe(`/topic/chat/${data.articleId}/${data.chatRoomId}`, (message) => {
                     const receivedMessage = JSON.parse(message.body);
-                    // 자신이 보낸 메시지는 처리하지 않음
-                    console.log('전달받은 메시지의 userId: ' + receivedMessage.userId);
-                    console.log('클라이언트 로그인 사용자의 userId: ' + data.userId);
                     if (String(receivedMessage.userId) !== String(data.userId)) {
                         showMessage(receivedMessage, data.userId);
                     }
@@ -92,7 +155,7 @@ const ChatRoom = () => {
                 console.error('Broker reported error: ' + frame.headers['message']);
                 console.error('Additional details: ' + frame.body);
             },
-        });
+        }, data.jwtToken, data.deviceToken);
 
         client.activate();
     };
@@ -101,9 +164,38 @@ const ChatRoom = () => {
         if (newMessage.type === "UPDATE" && sessionUserId !== newMessage.userId) {
             useChatStore.getState().updateMessage(newMessage.messageId, newMessage.content);
         } else {
-            const isSentByMe = newMessage.userId === sessionUserId;
+            const isSentByMe = String(newMessage.userId) === String(sessionUserId);
             addMessage({...newMessage, isSentByMe});
         }
+    };
+
+    const renderMessagesWithDateDividers = () => {
+        let currentDate = null;
+        const messageGroups = [];
+
+        messages.forEach((msg, index) => {
+            const messageDate = new Date(msg.timestamp);
+            const dateStr = messageDate.toLocaleDateString();
+
+            if (dateStr !== currentDate) {
+                currentDate = dateStr;
+                messageGroups.push(
+                    <DateDivider key={`date-${dateStr}`}>
+                        {dateStr}
+                    </DateDivider>
+                );
+            }
+
+            messageGroups.push(
+                <ChatMessage
+                    key={`msg-${index}`}
+                    message={msg}
+                    isSentByMe={msg.isSentByMe}
+                />
+            );
+        });
+
+        return messageGroups;
     };
 
     const sendMessage = () => {
@@ -113,6 +205,7 @@ const ChatRoom = () => {
                 userId: chatData.userId,
                 content: message,
                 timestamp: new Date().toISOString(),
+                isImage: false,
                 isSentByMe: true
             };
 
@@ -131,7 +224,7 @@ const ChatRoom = () => {
             connection.client.deactivate();
         }
         sessionStorage.removeItem('chatData');
-        setMessages([]); // 메시지 초기화
+        setMessages([]);
         navigate('/');
     };
 
@@ -140,33 +233,18 @@ const ChatRoom = () => {
             <AppBar position="static">
                 <Toolbar>
                     <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                        Chat Room: {chatData?.chatRoomId}
+                        {articleTitle || `Chat Room: ${chatData?.chatRoomId}`}
                     </Typography>
                     <IconButton color="inherit" onClick={handleExit}>
                         <ExitToAppIcon />
                     </IconButton>
                 </Toolbar>
             </AppBar>
-
             <Container>
                 <ChatContainer elevation={3}>
-                    <Box sx={{ p: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary">
-                            Article ID: {chatData?.articleId} | Nickname: {chatData?.nickname}
-                        </Typography>
-                    </Box>
-                    <Divider />
-
                     <MessagesContainer>
-                        {messages.map((msg, index) => (
-                            <ChatMessage
-                                key={index}
-                                message={msg}
-                                isSentByMe={msg.isSentByMe}
-                            />
-                        ))}
+                        {renderMessagesWithDateDividers()}
                     </MessagesContainer>
-
                     <Divider />
                     <ChatInput
                         message={message}
