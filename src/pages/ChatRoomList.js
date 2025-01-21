@@ -69,10 +69,19 @@ const ChatRoomList = () => {
             setDeviceToken(storedDeviceToken || '');
 
             try {
-                const response = await axios.get('http://localhost:8080/chatroom/lost-item/', {
+                const response = await axios.get('http://localhost:8080/chatroom/lost-item', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                setChatRooms(response.data);
+                const convertedData = response.data.map(room => ({
+                    articleId: room.article_id,
+                    chatRoomId: room.chat_room_id,
+                    lastMessageAt: room.last_message_at,
+                    lostItemImageUrl: room.lost_item_image_url,
+                    recentMessageContent: room.recent_message_content,
+                    title: room.title,
+                    unreadMessageCount: room.unread_message_count
+                }));
+                setChatRooms(convertedData);
             } catch (error) {
                 console.error('Failed to fetch chat rooms:', error);
                 navigate('/');

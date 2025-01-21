@@ -98,7 +98,7 @@ const ChatLogin = () => {
                                 name="isFromMessageList"
                             />
                         }
-                        label="쪽지함에서 진입"
+                        label="채팅방 목록에서 직접 채팅방 진입"
                     />
 
                     <TextField
@@ -146,7 +146,7 @@ const ChatLogin = () => {
                             size="large"
                             onClick={() => handleConnection('stomp')}
                         >
-                            Connect with STOMP
+                            채팅방 생성
                         </Button>
                         <Button
                             fullWidth
