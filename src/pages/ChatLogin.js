@@ -30,7 +30,6 @@ const ChatLogin = () => {
         articleId: '',
         chatRoomId: '',
         jwtToken: '',
-        deviceToken: ''
     });
     const [error, setError] = useState('');
 
@@ -127,17 +126,6 @@ const ChatLogin = () => {
                         label="JWT Token"
                         name="jwtToken"
                         value={formData.jwtToken}
-                        onChange={handleChange}
-                        variant="outlined"
-                        multiline
-                        rows={3}
-                    />
-
-                    <TextField
-                        fullWidth
-                        label="Device Token"
-                        name="deviceToken"
-                        value={formData.deviceToken}
                         onChange={handleChange}
                         variant="outlined"
                         multiline

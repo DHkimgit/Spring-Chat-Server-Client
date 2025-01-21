@@ -155,7 +155,7 @@ const ChatRoom = () => {
                 console.error('Broker reported error: ' + frame.headers['message']);
                 console.error('Additional details: ' + frame.body);
             },
-        }, data.jwtToken, data.deviceToken);
+        }, data.jwtToken);
 
         client.activate();
     };

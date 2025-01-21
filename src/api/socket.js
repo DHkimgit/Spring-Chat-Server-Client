@@ -4,12 +4,11 @@ import io from 'socket.io-client';
 
 const SOCKET_URL = 'http://localhost:8080';
 
-export const createStompConnection = (options, authtoken, devicetoken) => {
+export const createStompConnection = (options, authtoken) => {
     const client = new Client({
         brokerURL: `${SOCKET_URL}/ws-stomp`,
         connectHeaders: {
-            Authorization: authtoken,
-            deviceToken: devicetoken
+            Authorization: authtoken
         },
         debug: function (str) {
             console.log(str);
