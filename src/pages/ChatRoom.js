@@ -124,7 +124,7 @@ const ChatRoom = () => {
 
             const formattedMessages = messagesResponse.data.map(msg => ({
                 ...msg,
-                isSentByMe: String(msg.userId) === String(roomData.user_id)
+                isSentByMe: String(msg.user_id) === String(roomData.user_id)
             }));
             setMessages(formattedMessages);
 
@@ -142,7 +142,8 @@ const ChatRoom = () => {
 
                 client.subscribe(`/topic/chat/${data.articleId}/${data.chatRoomId}`, (message) => {
                     const receivedMessage = JSON.parse(message.body);
-                    if (String(receivedMessage.userId) !== String(data.userId)) {
+                    console.log('receivedMessage:' + receivedMessage.user_id)
+                    if (String(receivedMessage.user_id) !== String(data.userId)) {
                         showMessage(receivedMessage, data.userId);
                     }
                 });
@@ -161,10 +162,10 @@ const ChatRoom = () => {
     };
 
     const showMessage = (newMessage, sessionUserId) => {
-        if (newMessage.type === "UPDATE" && sessionUserId !== newMessage.userId) {
+        if (newMessage.type === "UPDATE" && sessionUserId !== newMessage.user_id) {
             useChatStore.getState().updateMessage(newMessage.messageId, newMessage.content);
         } else {
-            const isSentByMe = String(newMessage.userId) === String(sessionUserId);
+            const isSentByMe = String(newMessage.user_id) === String(sessionUserId);
             addMessage({...newMessage, isSentByMe});
         }
     };
@@ -200,14 +201,17 @@ const ChatRoom = () => {
 
     const sendMessage = () => {
         if (connection.client && connection.client.active && message.trim() !== "") {
+            console.log('chatData:', chatData);
             const newMessage = {
-                userNickname: chatData.nickname,
-                userId: chatData.userId,
+                user_nickname: chatData.nickname,
+                user_id: chatData.userId,
                 content: message,
                 timestamp: new Date().toISOString(),
-                isImage: false,
+                is_image: false,
                 isSentByMe: true
             };
+
+            console.log('newMessage:', newMessage);
 
             connection.client.publish({
                 destination: `/app/chat/${chatData.articleId}/${chatData.chatRoomId}`,

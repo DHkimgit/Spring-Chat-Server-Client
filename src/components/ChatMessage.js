@@ -35,7 +35,7 @@ const ChatMessage = ({ message, isSentByMe }) => {
                     fontWeight: 'bold',
                     color: isSentByMe ? 'inherit' : 'text.secondary'
                 }}>
-                    {message.userNickname}
+                    {message.user_nickname}
                 </Typography>
                 <Typography variant="body1">
                     {message.content}
