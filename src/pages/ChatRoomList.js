@@ -78,7 +78,7 @@ const ChatRoomList = () => {
                     lastMessageAt: room.last_message_at,
                     lostItemImageUrl: room.lost_item_image_url,
                     recentMessageContent: room.recent_message_content,
-                    title: room.title,
+                    title: room.article_title,
                     unreadMessageCount: room.unread_message_count
                 }));
                 setChatRooms(convertedData);
